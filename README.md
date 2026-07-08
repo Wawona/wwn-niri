@@ -1,33 +1,67 @@
 # wwn-niri
 
 Wawona's port of **niri** — a scrollable-tiling, smithay-based Wayland
-compositor — to run under Wawona on the Apple ecosystem and Android, App Store
+compositor — running under Wawona on the Apple ecosystem and Android, App Store
 compliant. Aligns with `wwn-toolchain` like every other `wwn-*` port.
 
-> **Status: SKELETON.** This repo currently provides only the flake +
-> `registryFragment` skeleton and this port plan. The build stubs
-> (`dependencies/niri/stub.nix`) intentionally fail with a clear message. The
-> full cross-compiled port is downstream.
+> **Status: PORTED (Phase 29, port #1).** Upstream niri v26.04 plus the Wawona
+> nested-backend patch (`dependencies/niri/wawona-nested-port.patch`), built
+> per-platform through `wwn-toolchain`. watchOS is excluded (stub).
 
 ## Delivery model
 
-niri is itself a Wayland compositor, so under Wawona it runs **nested** (as a
-client of the Wawona compositor) rather than replacing it. See
+niri is itself a Wayland compositor, so under Wawona it runs **nested**: a
+Wayland client of the Wawona compositor, never replacing it. Wawona serves the
+subset niri needs (core + xdg + shm/dmabuf); niri hosts its own
+scrollable-tiling clients on a child Wayland socket that it exports through
+`NIRI_NESTED_WAYLAND_DISPLAY`. See
 [Wawona docs: wlroots compat](https://github.com/Wawona/Wawona/blob/main/docs/2026-wlroots-compat.md)
 and the platform delivery matrix.
 
-## Port plan
+## The nested backend patch
 
-1. **Toolchain**: consume `wwn-toolchain` cross toolchains (`buildForIOS`,
-   `buildForMacOS`, `buildForAndroid`).
-2. **Compliance deltas**: no JIT, no `fork+exec` of external binaries, sandbox-
-   safe runtime dirs (`XDG_RUNTIME_DIR` under app container), bundled config.
-3. **Backends**: niri targets a nested Wayland backend (client of Wawona); DRM/
-   libinput backends are not used on Apple/Android.
-4. **Wire up**: replace `dependencies/niri/stub.nix` with per-platform
-   derivations; expose `niri-{ios,macos,android}` packages; register in Wawona.
-5. **Catalog**: `wwn-apt` already lists `niri` with `status: planned`; flip to
-   `approved` once the port passes CI + App Store review.
+`dependencies/niri/src.nix` stages upstream `YaLTeR/niri` v26.04 and applies
+`wawona-nested-port.patch`, which:
+
+- adds `src/backend/nested/` — a Wayland-client backend: the niri output is an
+  `xdg_toplevel` on the host compositor, rendering is GLES over
+  `EGL_KHR_platform_wayland` / `EGL_EXT_platform_wayland` (served on mobile by
+  the `wwn-iland`/ANGLE EGL), and host seat input (pointer/keyboard/touch) is
+  translated into niri's input pipeline;
+- gates the desktop-Linux-only stacks (DRM/KMS tty backend, winit backend,
+  libinput, udev/libseat, drm-lease, gamma) behind `cfg(target_os = "linux")` —
+  desktop-Linux builds keep upstream behavior;
+- adds `src/c_api.rs` (`niri_main` C ABI) plus a `staticlib` crate-type so
+  mobile targets can host niri in-process;
+- honors `NIRI_BACKEND=nested` everywhere (on non-Linux it is the only session
+  backend).
+
+## Per-platform artifacts & store viability
+
+| Platform | Artifact | Launch model | Store posture |
+| --- | --- | --- | --- |
+| macOS | `bin/niri` + `lib/libniri.a` | app fork/execs the bundled binary | Developer ID / notarization: viable (out-of-process helper binaries are allowed) |
+| iOS / iPadOS | `lib/libniri.a` (`niri_main`) | linked into the app, started on a dedicated thread in-process | App Store: viable — no JIT, no fork/exec, no dlopen of downloaded code; config KDL ships as read-only bundle data; sockets live in the app-container `XDG_RUNTIME_DIR` |
+| tvOS / visionOS | same as iOS (registry reuses `ios.nix`) | in-process | same as iOS |
+| Android / Wear OS | `lib/libniri_bin.so` (PIE exe, waypipe pattern) + `lib/libniri.a` | exec'd from the APK's `nativeLibraryDir` (exec-allowed) | Play Store: viable — binary ships inside the APK's jniLibs, `extractNativeLibs` exec path |
+| watchOS | stub | — | excluded from the port |
+
+GPL-3.0-or-later licensing is disclosed in the `wwn-apt` catalog entry;
+source-offer obligations are met by this repo (patch + pinned upstream).
+
+## Validation
+
+- `nix build .#niri-macos` (host baseline) — binary + static lib.
+- Wawona flake exposes `niri-android` (needs the Android SDK context) and
+  bundles niri into the macOS app and Android APK.
+- Capability lane: `Wawona/scripts/ci-capability-lane.sh` (Linux, optional niri
+  stage) and `Wawona/scripts/niri-smoke-macos.sh` (macOS: nested boot + child
+  socket + non-black frame assertion).
+- Android: validated on the API 36 emulator — the Machines picker launches niri
+  nested (`NIRI_BACKEND=nested`, offscreen + `wl_shm` presentation), it serves
+  its own child socket (`wayland-1`), and renders its hotkey overlay. Replay:
+  `Wawona/.agent-device/wawona-android-niri-smoke.ad`.
+- Catalog: `wwn-apt/catalog/modules/niri.yaml` is `status: approved`.
 
 ## Convention
 
