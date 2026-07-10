@@ -24,30 +24,42 @@
         config = { allowUnfree = true; allowUnsupportedSystem = true; android_sdk.accept_license = true; };
       };
 
-      dir = ./dependencies/niri;
+      niriDir = ./dependencies/niri;
+      fuzzelDir = ./dependencies/fuzzel;
     in
     {
       # Registry fragment merged into Wawona's client registry. Real
       # per-platform derivations of the Wawona-patched niri (v26.04 + nested
       # Wayland-client backend); watchOS is excluded from the port (stub).
+      # fuzzel ships alongside niri as the default Mod+D launcher.
       registryFragment = {
         niri = withPlatformVariants {
-          android = dir + "/android.nix";
-          wearos = dir + "/android.nix";
-          ios = dir + "/ios.nix";
-          tvos = dir + "/ios.nix";
-          ipados = dir + "/ios.nix";
-          visionos = dir + "/ios.nix";
-          watchos = dir + "/stub.nix";
-          macos = dir + "/macos.nix";
+          android = niriDir + "/android.nix";
+          wearos = niriDir + "/android.nix";
+          ios = niriDir + "/ios.nix";
+          tvos = niriDir + "/ios.nix";
+          ipados = niriDir + "/ios.nix";
+          visionos = niriDir + "/ios.nix";
+          watchos = niriDir + "/stub.nix";
+          macos = niriDir + "/macos.nix";
+        };
+        fuzzel = withPlatformVariants {
+          android = fuzzelDir + "/stub.nix";
+          wearos = fuzzelDir + "/stub.nix";
+          ios = fuzzelDir + "/stub.nix";
+          tvos = fuzzelDir + "/stub.nix";
+          ipados = fuzzelDir + "/stub.nix";
+          visionos = fuzzelDir + "/stub.nix";
+          watchos = fuzzelDir + "/stub.nix";
+          macos = fuzzelDir + "/macos.nix";
         };
       };
 
       # Staged patched source (upstream v26.04 + Wawona nested-backend patch),
       # for consumers that need the source rather than a built artifact.
       lib = {
-        niriSrc = pkgs: import (dir + "/src.nix") { inherit pkgs; };
-        srcRecipe = dir + "/src.nix";
+        niriSrc = pkgs: import (niriDir + "/src.nix") { inherit pkgs; };
+        srcRecipe = niriDir + "/src.nix";
       };
 
       packages = forAll (system:
@@ -60,6 +72,7 @@
         # Wawona flake builds those (packages.*.niri-android) with its SDK.
         (if isDarwin then {
           niri-macos = tc.buildForMacOS "niri" { };
+          fuzzel-macos = tc.buildForMacOS "fuzzel" { };
           niri-ios = tc.buildForIOS "niri" { };
           niri-ipados = tc.buildForIPadOS "niri" { };
           niri-tvos = tc.buildForTVOS "niri" { };

@@ -52,6 +52,8 @@ source-offer obligations are met by this repo (patch + pinned upstream).
 ## Validation
 
 - `nix build .#niri-macos` (host baseline) — binary + static lib.
+- `nix build .#fuzzel-macos` — niri's default Mod+D launcher (bundled into the
+  macOS app as `Contents/Resources/bin/fuzzel`).
 - Wawona flake exposes `niri-android` (needs the Android SDK context) and
   bundles niri into the macOS app and Android APK.
 - Capability lane: `Wawona/scripts/ci-capability-lane.sh` (Linux, optional niri
