@@ -20,5 +20,8 @@ pkgs.applyPatches {
     rev = "v26.04";
     hash = "sha256-ehSMsSpE+0k8r+2Vseu8kangsYxToZv3vinynsDp9zs=";
   };
-  patches = [ ./wawona-nested-port.patch ];
+  patches = [
+    ./wawona-nested-port.patch
+    ./wawona-spawn-mobile.patch
+  ];
 }
