@@ -11,17 +11,21 @@
  use std::process::{Child, Command, Stdio};
  use std::sync::atomic::{AtomicBool, Ordering};
  use std::sync::RwLock;
-@@ -112,6 +116,81 @@
-         }
-     }
- 
+@@ -109,6 +113,82 @@
+         Ok(None) => (),
+         Err(err) => {
+             warn!("error expanding ~: {err:?}");
++        }
++    }
++
 +    // Apple mobile cannot fork/exec/posix_spawn. Route bundled helpers through
-+    // Wawona's in-process dispatcher (same path as zsh exec on iOS).
++    // Wawona's in-process dispatcher on a background thread so Wayland clients
++    // (fuzzel) do not freeze the compositor spawn thread.
 +    #[cfg(any(target_os = "ios", target_os = "tvos", target_os = "visionos"))]
 +    {
 +        extern "C" {
 +            fn wawona_dispatch_can_handle(argv0: *const libc::c_char) -> libc::c_int;
-+            fn wawona_dispatch_inprocess(
++            fn wawona_dispatch_spawn_async(
 +                path: *const libc::c_char,
 +                argv: *const *const libc::c_char,
 +                envp: *const *const libc::c_char,
@@ -77,19 +81,16 @@
 +            }
 +
 +            let rc = unsafe {
-+                wawona_dispatch_inprocess(
++                wawona_dispatch_spawn_async(
 +                    argv_owned[0].as_ptr(),
 +                    argv_ptrs.as_ptr(),
 +                    std::ptr::null(),
 +                )
 +            };
-+            if rc >= 0 && rc != 0 {
-+                warn!("in-process spawn of {:?} exited with {rc}", command);
++            if rc == -2 {
++                warn!("failed to spawn {:?} in-process on Apple mobile", command);
 +            }
 +            return;
-+        }
-+    }
-+
-     let mut process = Command::new(command);
-     process
-         .args(args)
+         }
+     }
+ 
