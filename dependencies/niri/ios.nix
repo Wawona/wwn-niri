@@ -137,10 +137,21 @@ rustPlatform.buildRustPackage {
 
     # smithay's EGL loader dlopens the Linux soname; on Apple mobile the
     # ANGLE EGL ships as an embedded libEGL.dylib (app Frameworks dir).
+    # DYLD_LIBRARY_PATH is stripped on iOS, so use @executable_path.
     for sm in "$vendor_dir"/smithay-*/src/backend/egl/ffi.rs; do
       if [ -f "$sm" ]; then
-        sed -i 's/Library::new("libEGL\.so\.1")/Library::new("libEGL.dylib")/' "$sm"
+        sed -i 's/Library::new("libEGL\.so\.1")/Library::new("@executable_path\/Frameworks\/libEGL.dylib")/' "$sm"
         echo "Patched smithay EGL library name for Apple mobile"
+      fi
+    done
+
+    # ANGLE on Apple mobile lacks GL_OES_EGL_image_external, but smithay
+    # always compiles an EXTERNAL texture shader variant at GLES init. Alias it
+    # to the normal shader so nested niri can boot (wl_shm presentation path).
+    for sh in "$vendor_dir"/smithay-*/src/backend/renderer/gles/shaders/mod.rs; do
+      if [ -f "$sh" ]; then
+        sed -i 's/create_variant(&\[shaders::EXTERNAL\])?/create_variant(\&[])?/' "$sh"
+        echo "Patched smithay GLES EXTERNAL shader for Apple mobile ANGLE"
       fi
     done
 
@@ -176,6 +187,13 @@ rustPlatform.buildRustPackage {
     fi
     cp "target/${rustTarget}/release/libniri.a" $out/lib/libniri.a
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
+    # Desktop autostart helpers (waybar, etc.) are not bundled on Apple mobile.
+    sed -i 's/^spawn-at-startup "waybar"/\/-spawn-at-startup "waybar"/' \
+      $out/share/niri/default-config.kdl
+    # Nested Mod=Alt; also bind Super+D (⌘ on hardware keyboards) for fuzzel.
+    sed -i '/Mod+D hotkey-overlay-title="Run an Application: fuzzel"/a\
+    Super+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }' \
+      $out/share/niri/default-config.kdl
     runHook postInstall
   '';
 

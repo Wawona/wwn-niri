@@ -46,10 +46,10 @@
         fuzzel = withPlatformVariants {
           android = fuzzelDir + "/stub.nix";
           wearos = fuzzelDir + "/stub.nix";
-          ios = fuzzelDir + "/stub.nix";
-          tvos = fuzzelDir + "/stub.nix";
-          ipados = fuzzelDir + "/stub.nix";
-          visionos = fuzzelDir + "/stub.nix";
+          ios = fuzzelDir + "/ios.nix";
+          tvos = fuzzelDir + "/ios.nix";
+          ipados = fuzzelDir + "/ios.nix";
+          visionos = fuzzelDir + "/ios.nix";
           watchos = fuzzelDir + "/stub.nix";
           macos = fuzzelDir + "/macos.nix";
         };
@@ -74,9 +74,13 @@
           niri-macos = tc.buildForMacOS "niri" { };
           fuzzel-macos = tc.buildForMacOS "fuzzel" { };
           niri-ios = tc.buildForIOS "niri" { };
+          fuzzel-ios = tc.buildForIOS "fuzzel" { };
           niri-ipados = tc.buildForIPadOS "niri" { };
+          fuzzel-ipados = tc.buildForIPadOS "fuzzel" { };
           niri-tvos = tc.buildForTVOS "niri" { };
+          fuzzel-tvos = tc.buildForTVOS "fuzzel" { };
           niri-visionos = tc.buildForVisionOS "niri" { };
+          fuzzel-visionos = tc.buildForVisionOS "fuzzel" { };
         } else { }));
 
       formatter = forAll (system: (pkgsFor system).nixfmt-rfc-style);

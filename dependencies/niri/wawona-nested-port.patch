@@ -856,7 +856,7 @@ new file mode 100644
 index 0000000..ce00c20
 --- /dev/null
 +++ b/src/backend/nested/mod.rs
-@@ -0,0 +1,1456 @@
+@@ -0,0 +1,1476 @@
 +//! Nested backend: niri as a Wayland client of a host compositor (Wawona).
 +//!
 +//! Wawona (wwn-niri): on Apple platforms and Android there is no DRM/KMS,
@@ -955,6 +955,7 @@ index 0000000..ce00c20
 +            // (EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE = WAYLAND_EXT)
 +            // even when EGL_EXT_platform_wayland is not advertised as a
 +            // *client* extension, so don't require it here.
++            #[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "visionos")))]
 +            egl_platform!(
 +                PLATFORM_ANGLE_ANGLE,
 +                display,
@@ -967,6 +968,25 @@ index 0000000..ce00c20
 +                    ffi::egl::PLATFORM_WAYLAND_EXT as _,
 +                    ffi::egl::PLATFORM_ANGLE_TYPE_ANGLE,
 +                    ffi::egl::PLATFORM_ANGLE_TYPE_VULKAN_ANGLE,
++                    ffi::egl::NONE as ffi::EGLint
++                ]
++            ),
++            // Apple mobile ANGLE advertises Metal, not Vulkan or Wayland client
++            // extensions. Keep wl_display as the native handle and render via the
++            // offscreen + wl_shm path (egl_has_wayland_winsys() == false).
++            #[cfg(any(target_os = "ios", target_os = "tvos", target_os = "visionos"))]
++            egl_platform!(
++                PLATFORM_ANGLE_ANGLE,
++                display,
++                &[
++                    "EGL_ANGLE_platform_angle",
++                    "EGL_ANGLE_platform_angle_metal",
++                ],
++                vec![
++                    ffi::egl::PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
++                    ffi::egl::PLATFORM_WAYLAND_EXT as _,
++                    ffi::egl::PLATFORM_ANGLE_TYPE_ANGLE,
++                    0x3489 as ffi::EGLint, // EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
 +                    ffi::egl::NONE as ffi::EGLint
 +                ]
 +            ),
