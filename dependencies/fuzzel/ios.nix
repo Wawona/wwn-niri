@@ -445,6 +445,8 @@ EOF
 extern int fuzzel_main(int argc, char *argv[]);
 int main(int argc, char *argv[]) { return fuzzel_main(argc, argv); }
 EOF
+    # App Store: replace fork+exec launch with wawona_dispatch_spawn_async.
+    patch -p1 < ${./wawona-ios-launch.patch}
   '';
 
   # Package every compiled object into a single static archive for in-process
