@@ -441,9 +441,24 @@ EOF
   'fuzzel-link-stub.c'," meson.build
     fi
     cat > fuzzel-link-stub.c << 'EOF'
-/* Satisfy meson executable link; main.c defines fuzzel_main instead of main. */
+/* Satisfy meson executable link; main.c defines fuzzel_main instead of main.
+ * Weak dispatch stubs: the real implementations live in libwwn-pty when the
+ * archive is force-loaded into the Wawona app. */
 extern int fuzzel_main(int argc, char *argv[]);
 int main(int argc, char *argv[]) { return fuzzel_main(argc, argv); }
+
+__attribute__((weak)) int wawona_dispatch_can_handle(const char *argv0) {
+  (void)argv0;
+  return 0;
+}
+__attribute__((weak)) int wawona_dispatch_spawn_async(const char *path,
+                                                      char *const argv[],
+                                                      char *const envp[]) {
+  (void)path;
+  (void)argv;
+  (void)envp;
+  return -1;
+}
 EOF
     # App Store: replace fork+exec launch with wawona_dispatch_spawn_async.
     patch -p1 < ${./wawona-ios-launch.patch}
