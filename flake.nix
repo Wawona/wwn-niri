@@ -44,7 +44,7 @@
           macos = niriDir + "/macos.nix";
         };
         fuzzel = withPlatformVariants {
-          android = fuzzelDir + "/stub.nix";
+          android = fuzzelDir + "/android.nix";
           wearos = fuzzelDir + "/stub.nix";
           ios = fuzzelDir + "/ios.nix";
           tvos = fuzzelDir + "/ios.nix";
