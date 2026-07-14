@@ -11,7 +11,7 @@
  use std::process::{Child, Command, Stdio};
  use std::sync::atomic::{AtomicBool, Ordering};
  use std::sync::RwLock;
-@@ -109,6 +113,82 @@
+@@ -109,6 +113,90 @@
          Ok(None) => (),
          Err(err) => {
              warn!("error expanding ~: {err:?}");
@@ -78,6 +78,14 @@
 +            if let Some(token) = token.as_ref() {
 +                std::env::set_var("XDG_ACTIVATION_TOKEN", token.as_str());
 +                std::env::set_var("DESKTOP_STARTUP_ID", token.as_str());
++            }
++
++            // In-process children share niri's environ. Point them at niri's
++            // nested socket (not the host WAYLAND_DISPLAY niri itself uses).
++            if let Ok(nested) = std::env::var("NIRI_NESTED_WAYLAND_DISPLAY") {
++                if !nested.is_empty() {
++                    std::env::set_var("WAYLAND_DISPLAY", nested);
++                }
 +            }
 +
 +            let rc = unsafe {

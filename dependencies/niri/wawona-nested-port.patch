@@ -2338,7 +2338,7 @@ new file mode 100644
 index 0000000..8191997
 --- /dev/null
 +++ b/src/c_api.rs
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,112 @@
 +//! Wawona (wwn-niri): C ABI entry point for running niri in-process.
 +//!
 +//! On Apple mobile targets (and optionally Android), the Wawona app cannot
@@ -2426,10 +2426,14 @@ index 0000000..8191997
 +    )
 +    .map_err(|err| anyhow::anyhow!("error creating the compositor state: {err}"))?;
 +
-+    // Export the child socket for the host app (niri's own clients connect
-+    // to this, while niri itself stays connected to WAYLAND_DISPLAY).
++    // Export the child socket for clients (fuzzel, etc.). niri itself already
++    // holds an open connection to the host via the prior WAYLAND_DISPLAY value,
++    // so rewriting WAYLAND_DISPLAY here is safe and required: in-process
++    // children share this environ and must not connect to the host (which on
++    // Apple mobile does not advertise zwlr_layer_shell_v1).
 +    if let Some(socket_name) = state.niri.socket_name.as_deref() {
 +        env::set_var("NIRI_NESTED_WAYLAND_DISPLAY", socket_name);
++        env::set_var("WAYLAND_DISPLAY", socket_name);
 +        info!(
 +            "niri (nested) listening on Wayland socket: {}",
 +            socket_name.to_string_lossy()
