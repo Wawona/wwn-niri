@@ -23,5 +23,8 @@ pkgs.applyPatches {
   patches = [
     ./wawona-nested-port.patch
     ./wawona-spawn-mobile.patch
+    # Keep panics inside niri_main from aborting the host Wawona process
+    # (extern "C" + panic_cannot_unwind → SIGABRT on iOS Simulator).
+    ./wawona-niri-main-catch-unwind.patch
   ];
 }

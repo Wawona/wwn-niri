@@ -1,0 +1,44 @@
+diff --git a/src/c_api.rs b/src/c_api.rs
+--- a/src/c_api.rs
++++ b/src/c_api.rs
+@@ -17,6 +17,7 @@
+ 
+ use std::env;
+ use std::ffi::c_int;
++use std::panic::{catch_unwind, AssertUnwindSafe};
+ use std::path::PathBuf;
+ 
+ use calloop::EventLoop;
+@@ -30,14 +31,27 @@
+ /// most once per process; niri's compositor state is not re-entrant.
+ #[no_mangle]
+ pub extern "C" fn niri_main() -> c_int {
+-    match run() {
+-        Ok(()) => 0,
+-        Err(err) => {
+-            // The host app may not have a tracing subscriber; make sure the
+-            // failure reaches stderr either way.
++    // Wawona hosts niri in-process. An uncaught panic through this extern "C"
++    // boundary becomes panic_cannot_unwind → abort of the whole app (iOS
++    // Simulator SIGABRT). Convert panics into a nonzero exit code so the host
++    // can tear down cleanly and surface WWNNativeClientLaunchFailedNotification.
++    match catch_unwind(AssertUnwindSafe(|| run())) {
++        Ok(Ok(())) => 0,
++        Ok(Err(err)) => {
+             eprintln!("niri_main: fatal error: {err:?}");
+             1
+         }
++        Err(payload) => {
++            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
++                (*s).to_owned()
++            } else if let Some(s) = payload.downcast_ref::<String>() {
++                s.clone()
++            } else {
++                "unknown panic".to_owned()
++            };
++            eprintln!("niri_main: panicked: {msg}");
++            101
++        }
+     }
+ }
+ 

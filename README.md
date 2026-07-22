@@ -21,7 +21,9 @@ and the platform delivery matrix.
 ## The nested backend patch
 
 `dependencies/niri/src.nix` stages upstream `YaLTeR/niri` v26.04 and applies
-`wawona-nested-port.patch`, which:
+`wawona-nested-port.patch`, `wawona-spawn-mobile.patch`, and
+`wawona-niri-main-catch-unwind.patch` (keeps panics inside `niri_main` from
+aborting the host Wawona process). The nested-port patch:
 
 - adds `src/backend/nested/` — a Wayland-client backend: the niri output is an
   `xdg_toplevel` on the host compositor, rendering is GLES over
