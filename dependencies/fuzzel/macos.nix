@@ -362,6 +362,8 @@ EOF
         printf '%s\n' "$MACOS_COMPAT" | cat - "$f" > "$f.tmp" && mv "$f.tmp" "$f"
       fi
     done
+    # Nested compositor HUP: skip wl_* destroys (else wl_closure_send SEGV).
+    patch -p1 < ${./wawona-safe-wayland-teardown.patch}
   '';
 
   mesonFlags = [

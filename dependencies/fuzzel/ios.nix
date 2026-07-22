@@ -462,6 +462,8 @@ __attribute__((weak)) int wawona_dispatch_spawn_async(const char *path,
 EOF
     # App Store: replace fork+exec launch with wawona_dispatch_spawn_async.
     patch -p1 < ${./wawona-ios-launch.patch}
+    # Nested compositor HUP: skip wl_* destroys (else wl_closure_send SEGV).
+    patch -p1 < ${./wawona-safe-wayland-teardown.patch}
   '';
 
   # Package every compiled object into a single static archive for in-process

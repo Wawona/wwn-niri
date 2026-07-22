@@ -155,6 +155,8 @@ pkgs.stdenv.mkDerivation (applySandbox {
     if [ -f meson.build ]; then
       sed -i "s/subdir('doc')/# Android: skip man pages/" meson.build
     fi
+    # Nested compositor HUP: skip wl_* destroys (else wl_closure_send SEGV).
+    patch -p1 < ${./wawona-safe-wayland-teardown.patch}
   '';
 
   configurePhase = ''
