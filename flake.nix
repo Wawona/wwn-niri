@@ -30,7 +30,7 @@
     {
       # Registry fragment merged into Wawona's client registry. Real
       # per-platform derivations of the Wawona-patched niri (v26.04 + nested
-      # Wayland-client backend); watchOS is excluded from the port (stub).
+      # Wayland-client backend), including the constrained watchOS build.
       # fuzzel ships alongside niri as the default Mod+D launcher.
       registryFragment = {
         niri = withPlatformVariants {
@@ -40,7 +40,7 @@
           tvos = niriDir + "/ios.nix";
           ipados = niriDir + "/ios.nix";
           visionos = niriDir + "/ios.nix";
-          watchos = niriDir + "/stub.nix";
+          watchos = niriDir + "/ios.nix";
           macos = niriDir + "/macos.nix";
         };
         fuzzel = withPlatformVariants {
@@ -79,6 +79,7 @@
           fuzzel-ipados = tc.buildForIPadOS "fuzzel" { };
           niri-tvos = tc.buildForTVOS "niri" { };
           fuzzel-tvos = tc.buildForTVOS "fuzzel" { };
+          niri-watchos = tc.buildForWatchOS "niri" { };
           niri-visionos = tc.buildForVisionOS "niri" { };
           fuzzel-visionos = tc.buildForVisionOS "fuzzel" { };
         } else { }));

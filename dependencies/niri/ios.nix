@@ -47,7 +47,36 @@ let
   ];
   pcPath = lib.concatMapStringsSep ":" (d: "${d}/lib/pkgconfig") pcDeps;
 
-  rustTarget = if simulator then "aarch64-apple-ios-sim" else "aarch64-apple-ios";
+  isTVOS = iosToolchain.isTVOSToolchain or false;
+  isWatchOS = iosToolchain.isWatchOSToolchain or false;
+  isVisionOS = iosToolchain.isVisionOSToolchain or false;
+  rustTarget =
+    if isWatchOS then
+      if simulator then "aarch64-apple-watchos-sim" else "aarch64-apple-watchos"
+    else if isTVOS then
+      if simulator then "aarch64-apple-tvos-sim" else "aarch64-apple-tvos"
+    else if isVisionOS then
+      if simulator then "aarch64-apple-visionos-sim" else "aarch64-apple-visionos"
+    else if simulator then
+      "aarch64-apple-ios-sim"
+    else
+      "aarch64-apple-ios";
+  deploymentTargetEnv =
+    if isWatchOS then ''
+      export WATCHOS_DEPLOYMENT_TARGET="${xcodeUtils.deploymentTarget}"
+      unset IPHONEOS_DEPLOYMENT_TARGET
+    ''
+    else if isTVOS then ''
+      export TVOS_DEPLOYMENT_TARGET="${xcodeUtils.deploymentTarget}"
+      unset IPHONEOS_DEPLOYMENT_TARGET
+    ''
+    else if isVisionOS then ''
+      export XROS_DEPLOYMENT_TARGET="${xcodeUtils.deploymentTarget}"
+      unset IPHONEOS_DEPLOYMENT_TARGET
+    ''
+    else ''
+      export IPHONEOS_DEPLOYMENT_TARGET="${xcodeUtils.deploymentTarget}"
+    '';
   rustToolchain = pkgs.rust-bin.stable.latest.default.override {
     targets = [ rustTarget ];
   };
@@ -84,7 +113,7 @@ rustPlatform.buildRustPackage {
     export NIX_CXXFLAGS_COMPILE=""
     export NIX_LDFLAGS=""
 
-    export IPHONEOS_DEPLOYMENT_TARGET="${xcodeUtils.deploymentTarget}"
+    ${deploymentTargetEnv}
     export CARGO_BUILD_TARGET="${rustTarget}"
 
     # Target-side C toolchain (cc-rs) — Xcode clang against the iOS SDK.
@@ -98,15 +127,14 @@ rustPlatform.buildRustPackage {
     # Append — cargoSetupPostUnpackHook already wrote the vendored-sources
     # replacement into .cargo/config.toml; do not clobber it.
     mkdir -p .cargo
-    cat >> .cargo/config.toml <<CARGO_EOF
-    [target.${rustTarget}]
-    linker = "$XCODE_CLANG"
-    rustflags = [
-      "-C", "link-arg=-arch", "-C", "link-arg=$IOS_ARCH",
-      "-C", "link-arg=-isysroot", "-C", "link-arg=$IOS_SDK",
-      "-C", "link-arg=$APPLE_DEPLOYMENT_FLAG"
-    ]
-    CARGO_EOF
+    printf '%s\n' \
+      '[target.${rustTarget}]' \
+      "linker = \"$XCODE_CLANG\"" \
+      'rustflags = [' \
+      "  \"-C\", \"link-arg=-arch\", \"-C\", \"link-arg=$IOS_ARCH\"," \
+      "  \"-C\", \"link-arg=-isysroot\", \"-C\", \"link-arg=$IOS_SDK\"," \
+      "  \"-C\", \"link-arg=$APPLE_DEPLOYMENT_FLAG\"" \
+      ']' >> .cargo/config.toml
 
     export PKG_CONFIG_PATH="${pcPath}:$PKG_CONFIG_PATH"
     export PKG_CONFIG_ALLOW_CROSS=1
@@ -135,13 +163,28 @@ rustPlatform.buildRustPackage {
     fi
     echo "Patched vendored wayland-backend + calloop cfgs for Apple mobile"
 
-    # smithay's EGL loader dlopens the Linux soname; on Apple mobile the
-    # ANGLE EGL ships as an embedded libEGL.dylib (app Frameworks dir).
-    # DYLD_LIBRARY_PATH is stripped on iOS, so use @executable_path.
+    # Apple mobile links wwn-iland + ANGLE statically. Resolve EGL from the
+    # current process (dlopen(NULL)), then let iland's eglGetProcAddress bridge
+    # extension entry points to ANGLE. This is store-safe and avoids a second
+    # EGL dylib/transition layer.
     for sm in "$vendor_dir"/smithay-*/src/backend/egl/ffi.rs; do
       if [ -f "$sm" ]; then
-        sed -i 's/Library::new("libEGL\.so\.1")/Library::new("@executable_path\/Frameworks\/libEGL.dylib")/' "$sm"
-        echo "Patched smithay EGL library name for Apple mobile"
+        python3 - "$sm" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+old = """    pub static LIB: LazyLock<Library> =
+        LazyLock::new(|| unsafe { Library::new("libEGL.so.1") }.expect("Failed to load LibEGL"));"""
+new = """    pub static LIB: LazyLock<Library> = LazyLock::new(|| {
+        Library::from(libloading::os::unix::Library::this())
+    });"""
+if old not in text:
+    raise SystemExit(f"smithay EGL loader anchor missing: {path}")
+path.write_text(text.replace(old, new, 1))
+PY
+        echo "Patched smithay EGL loader to current-process static symbols"
       fi
     done
 
