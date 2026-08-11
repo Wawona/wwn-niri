@@ -955,7 +955,7 @@ index 0000000..ce00c20
 +            // (EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE = WAYLAND_EXT)
 +            // even when EGL_EXT_platform_wayland is not advertised as a
 +            // *client* extension, so don't require it here.
-+            #[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "visionos")))]
++            #[cfg(not(any(target_os = "ios", target_os = "tvos", target_os = "visionos", target_os = "macos")))]
 +            egl_platform!(
 +                PLATFORM_ANGLE_ANGLE,
 +                display,
@@ -971,10 +971,10 @@ index 0000000..ce00c20
 +                    ffi::egl::NONE as ffi::EGLint
 +                ]
 +            ),
-+            // Apple mobile ANGLE advertises Metal, not Vulkan or Wayland client
-+            // extensions. Keep wl_display as the native handle and render via the
-+            // offscreen + wl_shm path (egl_has_wayland_winsys() == false).
-+            #[cfg(any(target_os = "ios", target_os = "tvos", target_os = "visionos"))]
++            // Apple ANGLE (macOS + mobile) advertises Metal, not Vulkan. macOS is
++            // here too: Vulkan-ANGLE eglInitialize needs a MoltenVK/KosmicKrisp
++            // device the headless macOS CI VM cannot create (EGL_NOT_INITIALIZED).
++            #[cfg(any(target_os = "ios", target_os = "tvos", target_os = "visionos", target_os = "macos"))]
 +            egl_platform!(
 +                PLATFORM_ANGLE_ANGLE,
 +                display,
