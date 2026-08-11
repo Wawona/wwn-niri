@@ -73,6 +73,21 @@ pkgs.rustPlatform.buildRustPackage {
         echo "Patched smithay EGL library name for macOS"
       fi
     done
+
+    # ANGLE's Metal backend disables GL_OES_EGL_image_external
+    # (DisplayMtl.mm: EGLImageExternalOES=false), but smithay's GlesRenderer
+    # unconditionally compiles an EXTERNAL (samplerExternalOES) shader variant at
+    # init, so nested niri panics with "Failed to compile Shader" on macOS ANGLE.
+    # Alias the EXTERNAL variant to the normal shader — same proven workaround the
+    # Apple-mobile recipe uses (ios.nix); nested niri on Apple presents via wl_shm,
+    # not the external-image sampler path. (Real external-image support is an
+    # upstream ANGLE-Metal TODO, tracked as the port-faithful follow-up.)
+    for sh in "$NIX_BUILD_TOP"/cargo-vendor-dir/smithay-*/src/backend/renderer/gles/shaders/mod.rs; do
+      if [ -f "$sh" ]; then
+        sed -i 's/create_variant(&\[shaders::EXTERNAL\])?/create_variant(\&[])?/' "$sh"
+        echo "Patched smithay GLES EXTERNAL shader for macOS ANGLE"
+      fi
+    done
   '';
 
   postInstall = ''
