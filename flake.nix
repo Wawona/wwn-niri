@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    wwn-toolchain.url = "github:Wawona/wwn-toolchain";
+    wwn-toolchain.url = "https://flakehub.com/f/Wawona/wwn-toolchain/*";
     wwn-toolchain.inputs.nixpkgs.follows = "nixpkgs";
     wwn-toolchain.inputs.rust-overlay.follows = "rust-overlay";
   };
