@@ -1,5 +1,7 @@
 # wwn-niri
 
+[![CI](https://github.com/Wawona/wwn-niri/actions/workflows/ci.yml/badge.svg)](https://github.com/Wawona/wwn-niri/actions/workflows/ci.yml)
+
 Wawona's port of **niri** — a scrollable-tiling, smithay-based Wayland
 compositor — running under Wawona on the Apple ecosystem and Android, App Store
 compliant. Aligns with `wwn-toolchain` like every other `wwn-*` port.
