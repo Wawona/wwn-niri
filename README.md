@@ -50,7 +50,7 @@ aborting the host Wawona process). The nested-port patch:
 | Android / Wear OS | `lib/libniri_bin.so` (PIE exe, waypipe pattern) + `lib/libniri.a` | exec'd from the APK's `nativeLibraryDir` (exec-allowed) | Play Store: viable — binary ships inside the APK's jniLibs, `extractNativeLibs` exec path |
 | watchOS | stub | — | excluded from the port |
 
-GPL-3.0-or-later licensing is disclosed in the `wwn-apt` catalog entry;
+GPL-3.0-or-later licensing is disclosed in the port plan / registryFragment entry;
 source-offer obligations are met by this repo (patch + pinned upstream).
 
 ## Validation
@@ -67,7 +67,7 @@ source-offer obligations are met by this repo (patch + pinned upstream).
   nested (`NIRI_BACKEND=nested`, offscreen + `wl_shm` presentation), it serves
   its own child socket (`wayland-1`), and renders its hotkey overlay. Replay:
   `Wawona/.agent-device/wawona-android-niri-smoke.ad`.
-- Catalog: `wwn-apt/catalog/modules/niri.yaml` is `status: approved`.
+- Delivery: mandatory native bundle (not StoreKit ODR / wwn-apt).
 
 ## Convention
 
