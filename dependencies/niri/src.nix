@@ -26,5 +26,10 @@ pkgs.applyPatches {
     # Keep panics inside niri_main from aborting the host Wawona process
     # (extern "C" + panic_cannot_unwind → SIGABRT on iOS Simulator).
     ./wawona-niri-main-catch-unwind.patch
+    # iOS/tvOS/watchOS/visionOS/Android: ANGLE advertises PLATFORM_WAYLAND_KHR
+    # for eglGetPlatformDisplay but cannot create a wl_egl_window surface.
+    # Nested niri must present via offscreen GLES + wl_shm. macOS keeps the
+    # real Wayland-EGL winsys probe.
+    ./wawona-nested-apple-shm.patch
   ];
 }

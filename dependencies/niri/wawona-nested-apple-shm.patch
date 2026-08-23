@@ -1,0 +1,66 @@
+diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
+--- a/src/backend/nested/mod.rs
++++ b/src/backend/nested/mod.rs
+@@ -108,22 +108,56 @@ static NESTED_SURFACE_ATTRIBUTES: [c_int; 3] = [
+ /// Whether the EGL implementation can create window surfaces from
+ /// wl_egl_window (a real Wayland winsys).
+ ///
+ /// ANGLE on Apple targets and Android system EGL initialize a display over
+ /// the wl_display handle (Vulkan/Metal backends) but have no Wayland window
+-/// surface support — CreatePlatformWindowSurfaceEXT would treat the
++/// surface support. CreatePlatformWindowSurfaceEXT would treat the
+ /// wl_egl_window as a native object of the underlying OS (CALayer /
+ /// ANativeWindow) and crash. In that case rendering goes through the
+ /// offscreen + wl_shm readback path instead.
+ ///
+ /// Must be called after the EGL library has been loaded (EGLDisplay::new).
++///
++/// Do not treat client `EGL_KHR_platform_wayland` as a winsys probe. iOS
++/// ANGLE selects PLATFORM_WAYLAND_KHR for eglGetPlatformDisplay (so that
++/// client extension is present) but still cannot create a window surface
++/// from a wl_egl_window. Nested niri then died with
++/// `error initializing the nested backend` after EGL 1.5 came up.
++/// macOS iland has a real Wayland-EGL winsys; keep the extension probe there.
+ fn egl_has_wayland_winsys() -> bool {
++    #[cfg(any(
++        target_os = "ios",
++        target_os = "tvos",
++        target_os = "watchos",
++        target_os = "visionos",
++        target_os = "android"
++    ))]
++    {
++        false
++    }
++    #[cfg(not(any(
++        target_os = "ios",
++        target_os = "tvos",
++        target_os = "watchos",
++        target_os = "visionos",
++        target_os = "android"
++    )))]
+     unsafe {
+         let ptr = ffi::egl::QueryString(ffi::egl::NO_DISPLAY, ffi::egl::EXTENSIONS as ffi::EGLint);
+         if ptr.is_null() {
+             return false;
+         }
+         let extensions = std::ffi::CStr::from_ptr(ptr).to_string_lossy();
+         extensions
+             .split_whitespace()
+             .any(|ext| ext == "EGL_KHR_platform_wayland" || ext == "EGL_EXT_platform_wayland")
+     }
+ }
+ 
+ /// EGL native surface over a wl_egl_window for the host surface.
+diff --git a/src/c_api.rs b/src/c_api.rs
+--- a/src/c_api.rs
++++ b/src/c_api.rs
+@@ -48,7 +48,7 @@ pub extern "C" fn niri_main() -> c_int {
+     match catch_unwind(AssertUnwindSafe(|| run())) {
+         Ok(Ok(())) => 0,
+         Ok(Err(err)) => {
+-            eprintln!("niri_main: fatal error: {err:?}");
++            eprintln!("niri_main: fatal error: {err:#}");
+             1
+         }
+         Err(payload) => {
