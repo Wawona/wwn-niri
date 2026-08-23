@@ -198,6 +198,52 @@ PY
       fi
     done
 
+    # ANGLE on Apple mobile initializes EGL 1.5 then fails inside
+    # EGLDisplay::new: dmabuf format queries and eglBindAPI(OPENGL_ES).
+    # Nested niri never reached the wl_shm present path. Treat both as
+    # non-fatal so offscreen GLES can continue.
+    for disp in "$vendor_dir"/smithay-*/src/backend/egl/display.rs; do
+      if [ -f "$disp" ]; then
+        python3 - "$disp" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+old = """        let (dmabuf_import_formats, dmabuf_render_formats) =
+            get_dmabuf_formats(&display.handle, &extensions).map_err(Error::DisplayCreationError)?;
+
+        // egl <= 1.2 does not support OpenGL ES (maybe we want to support OpenGL in the future?)
+        if egl_version <= (1, 2) {
+            return Err(Error::OpenGlesNotSupported(None));
+        }
+        wrap_egl_call_bool(|| unsafe { ffi::egl::BindAPI(ffi::egl::OPENGL_ES_API) })
+            .map_err(|source| Error::OpenGlesNotSupported(Some(source)))?;
+"""
+new = """        let (dmabuf_import_formats, dmabuf_render_formats) =
+            get_dmabuf_formats(&display.handle, &extensions).unwrap_or_else(|err| {
+                tracing::warn!("dmabuf format query failed ({err:?}); continuing without dmabuf");
+                Default::default()
+            });
+
+        // egl <= 1.2 does not support OpenGL ES (maybe we want to support OpenGL in the future?)
+        if egl_version <= (1, 2) {
+            return Err(Error::OpenGlesNotSupported(None));
+        }
+        if let Err(source) =
+            wrap_egl_call_bool(|| unsafe { ffi::egl::BindAPI(ffi::egl::OPENGL_ES_API) })
+        {
+            tracing::warn!("eglBindAPI(OPENGL_ES_API) failed ({source:?}); continuing");
+        }
+"""
+if old not in text:
+    raise SystemExit(f"smithay EGLDisplay::new dmabuf/BindAPI anchor missing: {path}")
+path.write_text(text.replace(old, new, 1))
+PY
+        echo "Patched smithay EGLDisplay to tolerate missing dmabuf/BindAPI on ANGLE"
+      fi
+    done
+
     # Host-side build scripts / proc-macros need the macOS SDK.
     export MACOS_SDK=$(xcrun --sdk macosx --show-sdk-path 2>/dev/null || echo "$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
     export HOST_CC="/usr/bin/clang"
