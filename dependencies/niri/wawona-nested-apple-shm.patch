@@ -1,9 +1,8 @@
 diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
+index ebb961c..44d243b 100644
 --- a/src/backend/nested/mod.rs
 +++ b/src/backend/nested/mod.rs
-@@ -108,22 +108,56 @@ static NESTED_SURFACE_ATTRIBUTES: [c_int; 3] = [
- /// Whether the EGL implementation can create window surfaces from
- /// wl_egl_window (a real Wayland winsys).
+@@ -150,13 +150,37 @@ static NESTED_SURFACE_ATTRIBUTES: [c_int; 3] = [
  ///
  /// ANGLE on Apple targets and Android system EGL initialize a display over
  /// the wl_display handle (Vulkan/Metal backends) but have no Wayland window
@@ -42,20 +41,11 @@ diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
      unsafe {
          let ptr = ffi::egl::QueryString(ffi::egl::NO_DISPLAY, ffi::egl::EXTENSIONS as ffi::EGLint);
          if ptr.is_null() {
-             return false;
-         }
-         let extensions = std::ffi::CStr::from_ptr(ptr).to_string_lossy();
-         extensions
-             .split_whitespace()
-             .any(|ext| ext == "EGL_KHR_platform_wayland" || ext == "EGL_EXT_platform_wayland")
-     }
- }
- 
- /// EGL native surface over a wl_egl_window for the host surface.
 diff --git a/src/c_api.rs b/src/c_api.rs
+index 21dc4f1..1fea551 100644
 --- a/src/c_api.rs
 +++ b/src/c_api.rs
-@@ -48,7 +48,7 @@ pub extern "C" fn niri_main() -> c_int {
+@@ -38,7 +38,7 @@ pub extern "C" fn niri_main() -> c_int {
      match catch_unwind(AssertUnwindSafe(|| run())) {
          Ok(Ok(())) => 0,
          Ok(Err(err)) => {
