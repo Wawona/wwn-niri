@@ -31,5 +31,9 @@ pkgs.applyPatches {
     # Nested niri must present via offscreen GLES + wl_shm. macOS keeps the
     # real Wayland-EGL winsys probe.
     ./wawona-nested-apple-shm.patch
+    # ANGLE on Apple mobile often rejects 10-bit GLES 3.0 configs. Fall back
+    # to 8-bit GLES 3.0 then GLES 2.0, and keep the smithay error in the
+    # anyhow chain so niri_main can print it.
+    ./wawona-nested-egl-context.patch
   ];
 }
