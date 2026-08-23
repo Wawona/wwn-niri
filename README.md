@@ -38,8 +38,10 @@ nested-port patch:
 - adds `src/c_api.rs` (`niri_main` C ABI) plus a `staticlib` crate-type so
   mobile targets can host niri in-process;
 - honors `NIRI_BACKEND=nested` (Mode A, every platform) and
-  `NIRI_BACKEND=tty` on Linux and **macOS Mode B** (iland DRM/KMS). iOS/Android
-  stay nested-only. `backend_winit` stays Linux-only.
+  `NIRI_BACKEND=tty` on Linux and **macOS Mode B** (iland DRM/KMS). `WWN_MODEB_TTY=1`
+  (Doorman login after Classic Take Over) also selects tty, even if a login rc
+  left `WAYLAND_DISPLAY` set. iOS/Android stay nested-only. `backend_winit`
+  stays Linux-only.
 
 ## Per-platform artifacts & store viability
 

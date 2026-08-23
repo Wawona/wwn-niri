@@ -658,20 +658,24 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
      pub touch: HashSet<input::Device>,
  
      // Smithay state.
-@@ -727,9 +729,10 @@
+@@ -727,9 +729,13 @@
              || env::var_os("DISPLAY").is_some();
  
          // Wawona (wwn-niri): NIRI_BACKEND=nested forces the nested (Wayland
 -        // client of the host compositor) backend; on non-Linux targets it is
 -        // the only session backend.
+-        let force_nested = env::var_os("NIRI_BACKEND").is_some_and(|v| v == "nested");
 +        // client of the host compositor) backend. NIRI_BACKEND=tty selects the
 +        // DRM/KMS session backend on Linux and on macOS Mode B (iland).
-         let force_nested = env::var_os("NIRI_BACKEND").is_some_and(|v| v == "nested");
-+        let force_tty = env::var_os("NIRI_BACKEND").is_some_and(|v| v == "tty");
++        let modeb_tty = env::var_os("WWN_MODEB_TTY").is_some_and(|v| v != "0");
++        let force_nested = !modeb_tty
++            && env::var_os("NIRI_BACKEND").is_some_and(|v| v == "nested");
++        let force_tty = modeb_tty
++            || env::var_os("NIRI_BACKEND").is_some_and(|v| v == "tty");
  
          let mut backend = if headless {
              let headless = Headless::new();
-@@ -738,26 +741,14 @@
+@@ -738,26 +744,14 @@
              let nested = Nested::new(config.clone(), event_loop.clone())
                  .context("error initializing the nested backend")?;
              Backend::Nested(Box::new(nested))
@@ -701,7 +705,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
              {
                  return Err(anyhow::anyhow!(
                      "no host Wayland display found (WAYLAND_DISPLAY/WAYLAND_SOCKET); \
-@@ -765,6 +756,18 @@
+@@ -765,6 +759,18 @@
                  )
                  .into());
              }
@@ -720,7 +724,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
          };
  
          let mut niri = Niri::new(
-@@ -1681,14 +1684,14 @@
+@@ -1681,14 +1687,14 @@
              self.ipc_keyboard_layouts_changed();
          }
  
@@ -737,7 +741,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
          let _ = libinput_config_changed;
  
          if ignored_nodes_changed {
-@@ -1861,12 +1864,12 @@
+@@ -1861,12 +1867,12 @@
          // user. Since if we add a new section and some existing section also matches the
          // output, then our new section won't do anything.
          let temp;
@@ -752,7 +756,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
          let disconnected_name: Option<OutputName> = None;
          let match_name = if let Some(output) = self.niri.output_by_name_match(name) {
              output.user_data().get::<OutputName>().unwrap()
-@@ -2390,9 +2393,9 @@
+@@ -2390,9 +2396,9 @@
          let background_effect_state = BackgroundEffectState::new::<State>(&display_handle);
          let xdg_foreign_state = XdgForeignState::new::<State>(&display_handle);
  
@@ -764,7 +768,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
          let is_tty = false;
          let gamma_control_manager_state =
              GammaControlManagerState::new::<State, _>(&display_handle, move |client| {
-@@ -2559,11 +2562,11 @@
+@@ -2559,11 +2565,11 @@
              monitors_active: true,
              is_lid_closed: false,
  
@@ -779,7 +783,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
              touch: HashSet::new(),
  
              compositor_state,
-@@ -4973,7 +4976,7 @@
+@@ -4973,7 +4979,7 @@
          }
      }
  
