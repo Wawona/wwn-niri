@@ -19,6 +19,7 @@ let
   niriSrc = import ./src.nix { inherit pkgs; };
   libwayland = buildModule.buildForAndroid "libwayland" { };
   xkbcommon = buildModule.buildForAndroid "xkbcommon" { };
+  iland = buildModule.buildForAndroid "iland" { };
   cairo = buildModule.buildForAndroid "cairo" { };
   pango = buildModule.buildForAndroid "pango" { };
   glib = buildModule.buildForAndroid "glib" { };
@@ -66,7 +67,7 @@ rustPlatform.buildRustPackage {
   };
 
   nativeBuildInputs = with buildPackages; [ pkg-config ];
-  buildInputs = pcDeps;
+  buildInputs = pcDeps ++ [ iland ];
 
   CARGO_BUILD_TARGET = "aarch64-linux-android";
   CC_aarch64_linux_android = "${androidLinkerWrapper}";
@@ -89,13 +90,28 @@ rustPlatform.buildRustPackage {
     #   with -nodefaultlibs, so clang's driver never adds it.
     builtins_rt=$(${androidToolchain.androidCC} -print-libgcc-file-name)
     export RUSTFLAGS="$RUSTFLAGS -L native=${libintl}/lib -C link-arg=-lintl -C link-arg=$builtins_rt"
+    # iland EGL + Wayland-EGL. Target-only so host proc-macros are not linked.
+    export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-L native=${iland}/lib -C link-arg=-Wl,--whole-archive -C link-arg=-liland_userland -C link-arg=-liland_wayland_egl -C link-arg=-Wl,--no-whole-archive $CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS"
 
-    # smithay's EGL loader dlopens the Linux soname; Android's system EGL
-    # (and the ANGLE EGL in the app's nativeLibraryDir) is plain libEGL.so.
+    # Apple mobile / Android link wwn-iland. Resolve EGL from this process.
     for sm in "$NIX_BUILD_TOP"/cargo-vendor-dir/smithay-*/src/backend/egl/ffi.rs; do
       if [ -f "$sm" ]; then
-        sed -i 's/Library::new("libEGL\.so\.1")/Library::new("libEGL.so")/' "$sm"
-        echo "Patched smithay EGL library name for Android"
+        python3 - "$sm" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+old = """    pub static LIB: LazyLock<Library> =
+        LazyLock::new(|| unsafe { Library::new("libEGL.so.1") }.expect("Failed to load LibEGL"));"""
+new = """    pub static LIB: LazyLock<Library> = LazyLock::new(|| {
+        Library::from(libloading::os::unix::Library::this())
+    });"""
+if old not in text:
+    raise SystemExit(f"smithay EGL loader anchor missing: {path}")
+path.write_text(text.replace(old, new, 1))
+PY
+        echo "Patched smithay EGL loader to current-process iland symbols"
       fi
     done
   '';

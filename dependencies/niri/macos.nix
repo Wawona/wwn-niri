@@ -1,7 +1,7 @@
 # niri for macOS — Wawona-patched niri (v26.04 + nested + macOS DRM tty).
 #
 # Mode A: nested (WAYLAND_DISPLAY -> Wawona, NIRI_BACKEND=nested). GLES via
-# ANGLE libEGL.dylib on rpath.
+# iland's EGL (force-loaded; ANGLE is dlopened as a private image).
 # Mode B: session compositor (no WAYLAND_DISPLAY, NIRI_BACKEND=tty) against
 # iland userspace DRM/KMS/GBM/udev/libinput. L0 epoll-shim supplies eventfd(2)
 # for smithay drm_syncobj (same substrate as libwayland). The dylib
@@ -137,10 +137,10 @@ Libs: -L${iland}/lib -liland_userland
 EOF
     cat > "$SHIM/pkgconfig/egl.pc" <<EOF
 Name: egl
-Description: ANGLE EGL via iland
+Description: iland EGL (Wayland-EGL winsys; ANGLE is dlopened)
 Version: 1.5
 Cflags: -I${angle}/include -I${iland}/include
-Libs: -L${iland}/lib -liland_userland -L${angle}/lib -lEGL
+Libs: -L${iland}/lib -liland_userland
 EOF
     cat > "$SHIM/pkgconfig/glesv2.pc" <<EOF
 Name: glesv2
@@ -153,14 +153,34 @@ EOF
     export PKG_CONFIG_PATH="$SHIM/pkgconfig:${libwayland}/lib/pkgconfig:${xkbcommon}/lib/pkgconfig:${epollShim}/lib/pkgconfig:$PKG_CONFIG_PATH"
     export NIX_CFLAGS_COMPILE="-I${epollShim}/include/libepoll-shim $NIX_CFLAGS_COMPILE"
     export RUSTFLAGS="-A warnings $RUSTFLAGS"
-    export NIX_LDFLAGS="$NIX_LDFLAGS -L$SHIM/lib -lniri_drm_shims -L${epollShim}/lib -lepoll-shim -L${iland}/lib -liland_userland -L${angle}/lib -lEGL -lGLESv2 -framework IOSurface -framework Foundation -framework CoreFoundation -framework CoreGraphics -framework Accelerate -framework QuartzCore -framework Metal -framework IOKit"
+    # Public EGL is iland's libEGL.dylib (Wayland-EGL + dma_buf). ANGLE is
+    # dlopened as libEGL_angle.dylib. Do not -lEGL from the ANGLE prefix.
+    export NIX_LDFLAGS="$NIX_LDFLAGS -L$SHIM/lib -lniri_drm_shims -L${epollShim}/lib -lepoll-shim -L${iland}/lib -liland_userland -L${libwayland}/lib -lwayland-client -L${angle}/lib -lGLESv2 -framework IOSurface -framework Foundation -framework CoreFoundation -framework CoreGraphics -framework Accelerate -framework QuartzCore -framework Metal -framework IOKit"
+    # iland libEGL.dylib is the public EGL ABI. Target-only: NIX_LDFLAGS -lEGL
+    # would LC_LOAD @rpath/libEGL into host proc-macro build scripts.
+    export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-L${iland}/lib -C link-arg=-lEGL $CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS"
+    export CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-L${iland}/lib -C link-arg=-lEGL $CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS"
 
     python3 ${./macos-rustix-eventfd-epoll-shim.py} "$NIX_BUILD_TOP/cargo-vendor-dir"
 
     for sm in "$NIX_BUILD_TOP"/cargo-vendor-dir/smithay-*/src/backend/egl/ffi.rs; do
       if [ -f "$sm" ]; then
-        sed -i 's/Library::new("libEGL\.so\.1")/Library::new("libEGL.dylib")/' "$sm"
-        echo "Patched smithay EGL library name for macOS"
+        python3 - "$sm" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+old = """    pub static LIB: LazyLock<Library> =
+        LazyLock::new(|| unsafe { Library::new("libEGL.so.1") }.expect("Failed to load LibEGL"));"""
+new = """    pub static LIB: LazyLock<Library> = LazyLock::new(|| {
+        Library::from(libloading::os::unix::Library::this())
+    });"""
+if old not in text:
+    raise SystemExit(f"smithay EGL loader anchor missing: {path}")
+path.write_text(text.replace(old, new, 1))
+PY
+        echo "Patched smithay EGL loader to current-process iland symbols"
       fi
     done
 
@@ -185,6 +205,16 @@ EOF
 
     mkdir -p $out/share/niri
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
+
+    # wegl / wayland-egl crate LC_LOADs libwayland-egl, whose stubs abort.
+    # wl_egl_window_* live in iland's libEGL.dylib. Point niri at that.
+    if [ -f "$out/bin/niri" ]; then
+      install_name_tool -add_rpath "${iland}/lib" "$out/bin/niri" 2>/dev/null || true
+      old_wl_egl=$(otool -L "$out/bin/niri" | awk '/libwayland-egl/{print $1; exit}')
+      if [ -n "$old_wl_egl" ]; then
+        install_name_tool -change "$old_wl_egl" @rpath/libEGL.dylib "$out/bin/niri"
+      fi
+    fi
   '';
 
   meta = {

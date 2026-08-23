@@ -26,10 +26,9 @@ pkgs.applyPatches {
     # Keep panics inside niri_main from aborting the host Wawona process
     # (extern "C" + panic_cannot_unwind → SIGABRT on iOS Simulator).
     ./wawona-niri-main-catch-unwind.patch
-    # iOS/tvOS/watchOS/visionOS/Android: ANGLE advertises PLATFORM_WAYLAND_KHR
-    # for eglGetPlatformDisplay but cannot create a wl_egl_window surface.
-    # Nested niri must present via offscreen GLES + wl_shm. macOS keeps the
-    # real Wayland-EGL winsys probe.
+    # iOS/tvOS/watchOS/visionOS/Android: ANGLE has no wl_egl_window. Nested
+    # niri uses iland's Wayland-EGL on every GPU target; watchOS (blocked)
+    # and tvOS (GPU still planned) stay on offscreen GLES + wl_shm.
     ./wawona-nested-apple-shm.patch
     # ANGLE on Apple mobile often rejects 10-bit GLES 3.0 configs. Fall back
     # to 8-bit GLES 3.0 then GLES 2.0, and keep the smithay error in the

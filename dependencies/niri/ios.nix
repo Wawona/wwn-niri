@@ -238,30 +238,7 @@ new = """        let (dmabuf_import_formats, dmabuf_render_formats) =
 """
 if old not in text:
     raise SystemExit(f"smithay EGLDisplay::new dmabuf/BindAPI anchor missing: {path}")
-text = text.replace(old, new, 1)
-old2 = """fn get_dmabuf_formats(
-    display: &ffi::egl::types::EGLDisplay,
-    extensions: &EGLExtensions,
-) -> Result<(FormatSet, FormatSet), EGLError> {
-    if !extensions.has_import_dmabuf {
-"""
-new2 = """fn get_dmabuf_formats(
-    display: &ffi::egl::types::EGLDisplay,
-    extensions: &EGLExtensions,
-) -> Result<(FormatSet, FormatSet), EGLError> {
-    // ANGLE advertises EGL_EXT_image_dma_buf_import but
-    // eglQueryDmaBufFormatsEXT returns EGL_BAD_DISPLAY and poisons the
-    // display, so eglCreateContext later fails with BadDisplay too.
-    // Nested niri presents via wl_shm; do not call the query.
-    let _ = (display, extensions);
-    warn!("skipping dmabuf format query (ANGLE nested wl_shm path)");
-    return Ok((FormatSet::default(), FormatSet::default()));
-    #[allow(unreachable_code)]
-    if !extensions.has_import_dmabuf {
-"""
-if old2 not in text:
-    raise SystemExit(f"smithay get_dmabuf_formats anchor missing: {path}")
-path.write_text(text.replace(old2, new2, 1))
+path.write_text(text.replace(old, new, 1))
 PY
         echo "Patched smithay EGLDisplay to tolerate missing dmabuf/BindAPI on ANGLE"
       fi
