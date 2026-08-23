@@ -35,5 +35,8 @@ pkgs.applyPatches {
     # to 8-bit GLES 3.0 then GLES 2.0, and keep the smithay error in the
     # anyhow chain so niri_main can print it.
     ./wawona-nested-egl-context.patch
+    # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
+    # iland userspace KMS. iOS/Android stay nested-only. winit stays Linux-only.
+    ./wawona-macos-drm-tty.patch
   ];
 }

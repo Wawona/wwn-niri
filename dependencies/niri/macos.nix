@@ -1,27 +1,32 @@
-# niri for macOS — builds the Wawona-patched niri (v26.04 + nested backend)
-# as a host binary plus a static library.
+# niri for macOS — Wawona-patched niri (v26.04 + nested + macOS DRM tty).
 #
-# Runtime model: Wawona macOS runs its compositor and launches niri nested
-# (WAYLAND_DISPLAY -> Wawona's socket, NIRI_BACKEND=nested). niri renders with
-# GLES through EGL_KHR_platform_wayland served by the wwn-iland/ANGLE EGL and
-# hosts its own scrollable-tiling clients on its child Wayland socket.
-#
-# macOS may fork/exec the bundled binary (Developer ID posture); bin/niri is
-# the primary artifact, lib/libniri.a (niri_main C ABI) is also shipped for
-# the in-process option.
+# Mode A: nested (WAYLAND_DISPLAY -> Wawona, NIRI_BACKEND=nested). GLES via
+# ANGLE libEGL.dylib on rpath.
+# Mode B: session compositor (no WAYLAND_DISPLAY, NIRI_BACKEND=tty) against
+# iland userspace DRM/KMS/GBM/udev/libinput. L0 epoll-shim supplies eventfd(2)
+# for smithay drm_syncobj (same substrate as libwayland). The dylib
+# libwayland-mac.dylib still does Dobby open()/ioctl interpose plus
+# framebufferd/inputd at engage time.
 {
   lib,
   pkgs,
   common,
   buildModule,
+  ilandSrc ? null,
 }:
 
 let
   niriSrc = import ./src.nix { inherit pkgs; };
   libwayland = buildModule.buildForMacOS "libwayland" { };
   xkbcommon = buildModule.buildForMacOS "xkbcommon" { };
+  iland = buildModule.buildForMacOS "iland" { };
+  angle = buildModule.buildForMacOS "angle" { };
+  epollShim = buildModule.buildForMacOS "epoll-shim" { };
   cargoTarget = pkgs.stdenv.hostPlatform.rust.rustcTarget;
+  ilandUpstream =
+    if ilandSrc != null then "${ilandSrc}/dependencies/libs/iland/upstream" else null;
 in
+assert ilandSrc != null && ilandUpstream != null;
 pkgs.rustPlatform.buildRustPackage {
   pname = "niri";
   version = "26.04-wawona";
@@ -34,16 +39,18 @@ pkgs.rustPlatform.buildRustPackage {
     };
   };
 
-  # dbus/systemd/xdp-gnome-screencast are desktop-Linux session integration;
-  # the nested session under Wawona uses none of them.
+  # dbus/systemd/xdp-gnome-screencast are desktop-Linux session integration.
   buildNoDefaultFeatures = true;
   buildFeatures = [ ];
 
-  nativeBuildInputs = [ pkgs.pkg-config ];
+  nativeBuildInputs = [ pkgs.pkg-config pkgs.clang pkgs.python3 ];
 
   buildInputs = [
     libwayland
     xkbcommon
+    iland
+    angle
+    epollShim
     pkgs.pango
     pkgs.cairo
     pkgs.glib
@@ -60,13 +67,96 @@ pkgs.rustPlatform.buildRustPackage {
       MACOS_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
     fi
     export SDKROOT="$MACOS_SDK"
-    export PKG_CONFIG_PATH="${libwayland}/lib/pkgconfig:${xkbcommon}/lib/pkgconfig:$PKG_CONFIG_PATH"
-    export RUSTFLAGS="-A warnings $RUSTFLAGS"
 
-    # smithay's EGL loader dlopens the Linux soname; on macOS the bundled
-    # wwn-iland/ANGLE EGL ships as libEGL.dylib (found via the executable's
-    # rpath → Wawona.app/Contents/Frameworks). Patch the writable vendor copy
-    # (importCargoLock checksums carry empty "files" maps, so edits are fine).
+    SHIM="$NIX_BUILD_TOP/niri-drm-shims"
+    mkdir -p "$SHIM/include/libseat" "$SHIM/lib" "$SHIM/pkgconfig"
+    cp ${./macos-libseat.h} "$SHIM/include/libseat/libseat.h"
+    cp ${ilandUpstream}/shims/udev/include/libudev.h "$SHIM/include/libudev.h"
+    cp ${ilandUpstream}/shims/libinput/include/libinput.h "$SHIM/include/libinput.h"
+    cp ${ilandUpstream}/shims/libinput/include/input_ipc.h "$SHIM/include/input_ipc.h"
+    cp ${iland}/include/gbm.h "$SHIM/include/gbm.h" || true
+    cp ${iland}/include/xf86drm.h "$SHIM/include/xf86drm.h" || true
+    cp ${iland}/include/xf86drmMode.h "$SHIM/include/xf86drmMode.h" || true
+    cp ${iland}/include/drm.h "$SHIM/include/drm.h" || true
+    cp ${iland}/include/drm_fourcc.h "$SHIM/include/drm_fourcc.h" || true
+
+    CLANG="${pkgs.clang}/bin/clang"
+    SHIM_CFLAGS="-isysroot $SDKROOT -mmacosx-version-min=12.0 -fPIC -O2 -std=c11 \
+      -I$SHIM/include -I$SHIM/include/libseat -I${iland}/include"
+    cat ${ilandUpstream}/shims/udev/src/udev.c ${./macos-udev-niri-extra.c} \
+      > "$SHIM/udev-full.c"
+    cat ${ilandUpstream}/shims/libinput/input/libinput.c \
+      ${./macos-libinput-niri-extra.c} > "$SHIM/libinput-full.c"
+    "$CLANG" -c "$SHIM/udev-full.c" $SHIM_CFLAGS -o "$SHIM/udev.o"
+    "$CLANG" -c "$SHIM/libinput-full.c" $SHIM_CFLAGS \
+      -o "$SHIM/libinput.o"
+    "$CLANG" -c ${./macos-libseat-stub.c} $SHIM_CFLAGS -o "$SHIM/libseat.o"
+    ar rcs "$SHIM/lib/libniri_drm_shims.a" "$SHIM/udev.o" "$SHIM/libinput.o" "$SHIM/libseat.o"
+    # input-sys / libudev-sys / libseat-sys pass -linput/-ludev/-lseat regardless of
+    # the .pc Libs line. Same archive, Linux soname.
+    ln -sf libniri_drm_shims.a "$SHIM/lib/libinput.a"
+    ln -sf libniri_drm_shims.a "$SHIM/lib/libudev.a"
+    ln -sf libniri_drm_shims.a "$SHIM/lib/libseat.a"
+    ln -sf ${iland}/lib/libiland_userland.a "$SHIM/lib/libgbm.a"
+    ln -sf ${iland}/lib/libiland_userland.a "$SHIM/lib/libdrm.a"
+
+    cat > "$SHIM/pkgconfig/libudev.pc" <<EOF
+Name: libudev
+Description: iland udev shim for macOS niri DRM
+Version: 255
+Cflags: -I$SHIM/include
+Libs: -L$SHIM/lib -lniri_drm_shims
+EOF
+    cat > "$SHIM/pkgconfig/libinput.pc" <<EOF
+Name: libinput
+Description: iland libinput shim for macOS niri DRM
+Version: 1.25.0
+Cflags: -I$SHIM/include
+Libs: -L$SHIM/lib -lniri_drm_shims
+EOF
+    cat > "$SHIM/pkgconfig/libseat.pc" <<EOF
+Name: libseat
+Description: libseat stub for macOS niri DRM
+Version: 0.7.0
+Cflags: -I$SHIM/include -I$SHIM/include/libseat
+Libs: -L$SHIM/lib -lniri_drm_shims
+EOF
+    cat > "$SHIM/pkgconfig/libdrm.pc" <<EOF
+Name: libdrm
+Description: iland DRM/KMS for macOS niri
+Version: 2.4.120
+Cflags: -I$SHIM/include -I${iland}/include
+Libs: -L${iland}/lib -liland_userland
+EOF
+    cat > "$SHIM/pkgconfig/gbm.pc" <<EOF
+Name: gbm
+Description: iland GBM for macOS niri
+Version: 22.0.0
+Cflags: -I$SHIM/include -I${iland}/include
+Libs: -L${iland}/lib -liland_userland
+EOF
+    cat > "$SHIM/pkgconfig/egl.pc" <<EOF
+Name: egl
+Description: ANGLE EGL via iland
+Version: 1.5
+Cflags: -I${angle}/include -I${iland}/include
+Libs: -L${iland}/lib -liland_userland -L${angle}/lib -lEGL
+EOF
+    cat > "$SHIM/pkgconfig/glesv2.pc" <<EOF
+Name: glesv2
+Description: ANGLE GLES2
+Version: 2.0
+Cflags: -I${angle}/include -I${iland}/include
+Libs: -L${angle}/lib -lGLESv2
+EOF
+
+    export PKG_CONFIG_PATH="$SHIM/pkgconfig:${libwayland}/lib/pkgconfig:${xkbcommon}/lib/pkgconfig:${epollShim}/lib/pkgconfig:$PKG_CONFIG_PATH"
+    export NIX_CFLAGS_COMPILE="-I${epollShim}/include/libepoll-shim $NIX_CFLAGS_COMPILE"
+    export RUSTFLAGS="-A warnings $RUSTFLAGS"
+    export NIX_LDFLAGS="$NIX_LDFLAGS -L$SHIM/lib -lniri_drm_shims -L${epollShim}/lib -lepoll-shim -L${iland}/lib -liland_userland -L${angle}/lib -lEGL -lGLESv2 -framework IOSurface -framework Foundation -framework CoreFoundation -framework CoreGraphics -framework Accelerate -framework QuartzCore -framework Metal -framework IOKit"
+
+    python3 ${./macos-rustix-eventfd-epoll-shim.py} "$NIX_BUILD_TOP/cargo-vendor-dir"
+
     for sm in "$NIX_BUILD_TOP"/cargo-vendor-dir/smithay-*/src/backend/egl/ffi.rs; do
       if [ -f "$sm" ]; then
         sed -i 's/Library::new("libEGL\.so\.1")/Library::new("libEGL.dylib")/' "$sm"
@@ -74,14 +164,6 @@ pkgs.rustPlatform.buildRustPackage {
       fi
     done
 
-    # ANGLE's Metal backend disables GL_OES_EGL_image_external
-    # (DisplayMtl.mm: EGLImageExternalOES=false), but smithay's GlesRenderer
-    # unconditionally compiles an EXTERNAL (samplerExternalOES) shader variant at
-    # init, so nested niri panics with "Failed to compile Shader" on macOS ANGLE.
-    # Alias the EXTERNAL variant to the normal shader — same proven workaround the
-    # Apple-mobile recipe uses (ios.nix); nested niri on Apple presents via wl_shm,
-    # not the external-image sampler path. (Real external-image support is an
-    # upstream ANGLE-Metal TODO, tracked as the port-faithful follow-up.)
     for sh in "$NIX_BUILD_TOP"/cargo-vendor-dir/smithay-*/src/backend/renderer/gles/shaders/mod.rs; do
       if [ -f "$sh" ]; then
         sed -i 's/create_variant(&\[shaders::EXTERNAL\])?/create_variant(\&[])?/' "$sh"
@@ -91,8 +173,6 @@ pkgs.rustPlatform.buildRustPackage {
   '';
 
   postInstall = ''
-    # Ship the static lib (niri_main C ABI) next to the binary for the
-    # in-process hosting option.
     mkdir -p $out/lib
     for cand in \
       "target/${cargoTarget}/release/libniri.a" \
@@ -103,14 +183,12 @@ pkgs.rustPlatform.buildRustPackage {
       fi
     done
 
-    # Bundle the default config as read-only data (sandbox-safe: the app
-    # points NIRI_CONFIG here or copies it into the container).
     mkdir -p $out/share/niri
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
   '';
 
   meta = {
-    description = "niri (scrollable-tiling Wayland compositor), Wawona nested port for macOS";
+    description = "niri (scrollable-tiling Wayland compositor), Wawona nested + macOS Mode B DRM tty port";
     license = lib.licenses.gpl3Plus;
     platforms = lib.platforms.darwin;
     mainProgram = "niri";

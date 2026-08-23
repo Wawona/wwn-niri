@@ -1,5 +1,5 @@
 {
-  description = "wwn-niri: Wawona's niri (scrollable-tiling, smithay-based) port for Apple platforms and Android. niri runs nested — a Wayland client of the Wawona compositor — via the Wawona nested backend patch.";
+  description = "wwn-niri: Wawona's niri (scrollable-tiling, smithay-based) port for Apple platforms and Android. Nested under Wawona (Mode A) plus macOS Mode B DRM/KMS tty via iland.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -8,9 +8,13 @@
     wwn-toolchain.url = "https://flakehub.com/f/Wawona/wwn-toolchain/*";
     wwn-toolchain.inputs.nixpkgs.follows = "nixpkgs";
     wwn-toolchain.inputs.rust-overlay.follows = "rust-overlay";
+    # L1 graphics: macOS niri Tty/DRM links iland userland KMS (Mode B).
+    wwn-iland.url = "https://flakehub.com/f/Wawona/wwn-iland/*";
+    wwn-iland.inputs.nixpkgs.follows = "nixpkgs";
+    wwn-iland.inputs.wwn-toolchain.follows = "wwn-toolchain";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, wwn-toolchain, ... }:
+  outputs = { self, nixpkgs, rust-overlay, wwn-toolchain, wwn-iland, ... }:
     let
       darwinSystems = [ "x86_64-darwin" "aarch64-darwin" ];
       linuxSystems = [ "x86_64-linux" "aarch64-linux" ];
@@ -65,7 +69,11 @@
       packages = forAll (system:
         let
           pkgs = pkgsFor system;
-          tc = mkToolchains { inherit pkgs; registry = baseRegistry // self.registryFragment; };
+          tc = mkToolchains {
+            inherit pkgs;
+            registry = baseRegistry // wwn-iland.registryFragment // self.registryFragment;
+            extraArgs = { ilandSrc = wwn-iland; };
+          };
           isDarwin = builtins.elem system darwinSystems;
         in
         # Android/wearOS need an androidSDK wired through mkToolchains; the

@@ -84,6 +84,7 @@
       "inputs": {
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
+        "wwn-iland": "wwn-iland",
         "wwn-toolchain": "wwn-toolchain"
       }
     },
@@ -107,6 +108,27 @@
         "type": "github"
       }
     },
+    "rust-overlay_2": {
+      "inputs": {
+        "nixpkgs": [
+          "wwn-iland",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782530211,
+        "narHash": "sha256-Zn5H2VVMaP79C+bvaUQD+SBXSKoTnURMZGiUrG00zII=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "06ba695dfefc4afc513b49dfc41c4bf0dd2eaeb1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
     "systems": {
       "locked": {
         "lastModified": 1681028828,
@@ -120,6 +142,29 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "wwn-iland": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_2",
+        "wwn-toolchain": [
+          "wwn-toolchain"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787091516,
+        "narHash": "sha256-EjEZs8tmr9GrxI9HxlOW1AZ8A46ADiCjcS9cv5Fanb0=",
+        "rev": "1bcb1fffe0e2d9cc1ac2881dc6c89c33648c6264",
+        "revCount": 73,
+        "type": "tarball",
+        "url": "https://api.flakehub.com/f/pinned/Wawona/wwn-iland/0.1.73%2Brev-1bcb1fffe0e2d9cc1ac2881dc6c89c33648c6264/01a016f5-5a0c-7591-ab7a-5c6a60621bf9/source.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://flakehub.com/f/Wawona/wwn-iland/%2A"
       }
     },
     "wwn-toolchain": {
