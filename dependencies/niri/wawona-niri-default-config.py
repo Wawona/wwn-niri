@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Tune bundled niri default-config.kdl for Wawona (no waybar, Adwaita cursors, no X11)."""
+import os
+import stat
 import sys
 from pathlib import Path
 
@@ -24,4 +26,5 @@ xwayland-satellite {
     off
 }
 """
+os.chmod(path, path.stat().st_mode | stat.S_IWRITE)
 path.write_text(text)
