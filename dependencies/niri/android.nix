@@ -66,7 +66,7 @@ rustPlatform.buildRustPackage {
     };
   };
 
-  nativeBuildInputs = with buildPackages; [ pkg-config ];
+  nativeBuildInputs = with buildPackages; [ pkg-config python3 ];
   buildInputs = pcDeps ++ [ iland ];
 
   CARGO_BUILD_TARGET = "aarch64-linux-android";
@@ -148,6 +148,7 @@ PY
     [ -n "$staticlib" ] && cp "$staticlib" $out/lib/libniri.a
 
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
+    python3 ${./wawona-niri-default-config.py} $out/share/niri/default-config.kdl
     runHook postInstall
   '';
 

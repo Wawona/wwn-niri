@@ -190,6 +190,9 @@ PY
         echo "Patched smithay GLES EXTERNAL shader for macOS ANGLE"
       fi
     done
+
+    python3 ${./wawona-wayland-sys-dylib.py} "$NIX_BUILD_TOP"/cargo-vendor-dir/wayland-sys-*/src/server.rs \
+      "$NIX_BUILD_TOP"/cargo-vendor-dir/wayland-sys-*/src/client.rs
   '';
 
   postInstall = ''
@@ -205,6 +208,7 @@ PY
 
     mkdir -p $out/share/niri
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
+    python3 ${./wawona-niri-default-config.py} $out/share/niri/default-config.kdl
 
     # wegl / wayland-egl crate LC_LOADs libwayland-egl, whose stubs abort.
     # wl_egl_window_* live in iland's libEGL.dylib. Point niri at that.

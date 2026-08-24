@@ -198,6 +198,9 @@ PY
       fi
     done
 
+    python3 ${./wawona-wayland-sys-dylib.py} "$vendor_dir"/wayland-sys-*/src/server.rs \
+      "$vendor_dir"/wayland-sys-*/src/client.rs
+
     # ANGLE on Apple mobile initializes EGL 1.5 then fails inside
     # EGLDisplay::new: dmabuf format queries and eglBindAPI(OPENGL_ES).
     # Nested niri never reached the wl_shm present path. Treat both as
@@ -276,9 +279,7 @@ PY
     fi
     cp "target/${rustTarget}/release/libniri.a" $out/lib/libniri.a
     cp ${niriSrc}/resources/default-config.kdl $out/share/niri/default-config.kdl
-    # Desktop autostart helpers (waybar, etc.) are not bundled on Apple mobile.
-    sed -i 's/^spawn-at-startup "waybar"/\/-spawn-at-startup "waybar"/' \
-      $out/share/niri/default-config.kdl
+    python3 ${./wawona-niri-default-config.py} $out/share/niri/default-config.kdl
     # Nested Mod=Alt; also bind Super+D (⌘ on hardware keyboards) for fuzzel.
     sed -i '/Mod+D hotkey-overlay-title="Run an Application: fuzzel"/a\
     Super+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }' \

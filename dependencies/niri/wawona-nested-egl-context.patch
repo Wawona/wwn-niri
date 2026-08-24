@@ -2,7 +2,7 @@ diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
 index 44d243b..c8425a4 100644
 --- a/src/backend/nested/mod.rs
 +++ b/src/backend/nested/mod.rs
-@@ -454,19 +454,39 @@ impl Nested {
+@@ -454,19 +454,33 @@ impl Nested {
              debug: cfg!(debug_assertions),
              vsync: false,
          };
@@ -10,21 +10,15 @@ index 44d243b..c8425a4 100644
 +            "nested: EGL display up; wayland_winsys={}",
 +            egl_has_wayland_winsys()
 +        );
++        // ANGLE on Apple/Android rejects 10-bit GLES 3.0
++        // (NoAvailablePixelFormat). Try 8-bit GLES 3.0 first.
          let context = EGLContext::new_with_config(
              &egl_display,
              gl_attributes,
-             PixelFormatRequirements::_10_bit(),
+-            PixelFormatRequirements::_10_bit(),
++            PixelFormatRequirements::_8_bit(),
          )
 -        .or_else(|_| {
-+        .or_else(|err| {
-+            tracing::warn!("nested 10-bit GLES 3.0 context failed: {err:?}");
-             EGLContext::new_with_config(
-                 &egl_display,
-                 gl_attributes,
-                 PixelFormatRequirements::_8_bit(),
-             )
-         })
--        .context("error creating the nested EGL context")?;
 +        .or_else(|err| {
 +            tracing::warn!("nested 8-bit GLES 3.0 context failed: {err:?}");
 +            let gl2 = GlAttributes {
@@ -33,12 +27,14 @@ index 44d243b..c8425a4 100644
 +                debug: cfg!(debug_assertions),
 +                vsync: false,
 +            };
-+            EGLContext::new_with_config(
-+                &egl_display,
+             EGLContext::new_with_config(
+                 &egl_display,
+-                gl_attributes,
 +                gl2,
-+                PixelFormatRequirements::_8_bit(),
-+            )
-+        })
+                 PixelFormatRequirements::_8_bit(),
+             )
+         })
+-        .context("error creating the nested EGL context")?;
 +        .map_err(|err| anyhow::anyhow!("error creating the nested EGL context: {err:?}"))?;
 +        info!("nested: EGL context created");
  

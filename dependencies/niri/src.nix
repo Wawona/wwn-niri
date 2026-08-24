@@ -30,10 +30,12 @@ pkgs.applyPatches {
     # niri uses iland's Wayland-EGL on every GPU target; watchOS (blocked)
     # and tvOS (GPU still planned) stay on offscreen GLES + wl_shm.
     ./wawona-nested-apple-shm.patch
-    # ANGLE on Apple mobile often rejects 10-bit GLES 3.0 configs. Fall back
-    # to 8-bit GLES 3.0 then GLES 2.0, and keep the smithay error in the
+    # ANGLE on Apple/Android often rejects 10-bit GLES 3.0 configs. Try
+    # 8-bit GLES 3.0 first, then GLES 2.0, and keep the smithay error in the
     # anyhow chain so niri_main can print it.
     ./wawona-nested-egl-context.patch
+    # macOS/Android/iOS: skip xwayland-satellite (not bundled; no X11 session).
+    ./wawona-xwayland-satellite-off.patch
     # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
     # iland userspace KMS. iOS/Android stay nested-only. winit stays Linux-only.
     ./wawona-macos-drm-tty.patch
