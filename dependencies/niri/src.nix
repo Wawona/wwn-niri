@@ -34,6 +34,11 @@ pkgs.applyPatches {
     # 8-bit GLES 3.0 first, then GLES 2.0, and keep the smithay error in the
     # anyhow chain so niri_main can print it.
     ./wawona-nested-egl-context.patch
+    # Nested inside pixman weston (no zwp_linux_dmabuf_v1): present via wl_shm
+    # so the xdg_toplevel actually maps. Iland EGL winsys is for Wawona's own
+    # compositor, not for an inner weston. Also maximize so a phone-sized
+    # weston is not asked for 1280x800.
+    ./wawona-nested-shm-without-host-dmabuf.patch
     # macOS/Android/iOS: skip xwayland-satellite (not bundled; no X11 session).
     ./wawona-xwayland-satellite-off.patch
     # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
