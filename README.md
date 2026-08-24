@@ -39,10 +39,12 @@ nested-port patch:
   mobile targets can host niri in-process;
 - honors `NIRI_BACKEND=nested` (Mode A, every platform) and
   `NIRI_BACKEND=tty` on Linux and **macOS Mode B** (iland DRM/KMS). `WWN_MODEB_TTY=1`
-  (Doorman login after Classic Take Over) also selects tty. A stale
-  `WAYLAND_DISPLAY` without a live socket, or leftover `DISPLAY` from XQuartz,
-  does not select nested on macOS. iOS/Android stay nested-only. `backend_winit`
-  stays Linux-only.
+  (Doorman login after Classic Take Over) selects tty only when there is no
+  live parent Wayland socket. A compositor started inside weston or niri
+  always nests on that parent (`wayland` / nested), including after Classic.
+  A stale `WAYLAND_DISPLAY` without a live socket, or leftover `DISPLAY` from
+  XQuartz, does not select nested on macOS. iOS/Android stay nested-only.
+  `backend_winit` stays Linux-only. `niri_main` is not re-entrant.
 
 ## Per-platform artifacts & store viability
 

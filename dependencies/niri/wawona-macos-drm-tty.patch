@@ -658,7 +658,7 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
      pub touch: HashSet<input::Device>,
  
      // Smithay state.
-@@ -725,11 +727,37 @@
+@@ -725,11 +727,40 @@
 -        let has_display = env::var_os("WAYLAND_DISPLAY").is_some()
 -            || env::var_os("WAYLAND_SOCKET").is_some()
 -            || env::var_os("DISPLAY").is_some();
@@ -695,14 +695,17 @@ diff -uN -r /tmp/niri-macos-tty-old/src/niri.rs /tmp/niri-macos-tty/src/niri.rs
 +            has_display |= env::var_os("DISPLAY").is_some();
 +        }
 +        let modeb_tty = env::var_os("WWN_MODEB_TTY").is_some_and(|v| v != "0");
-+        let force_nested = !modeb_tty
-+            && env::var_os("NIRI_BACKEND").is_some_and(|v| v == "nested");
-+        let force_tty = modeb_tty
-+            || env::var_os("NIRI_BACKEND").is_some_and(|v| v == "tty");
++        let want_nested = env::var_os("NIRI_BACKEND").is_some_and(|v| v == "nested");
++        let want_tty = env::var_os("NIRI_BACKEND").is_some_and(|v| v == "tty");
++        // Live parent Wayland (Wawona, weston, or another niri) always nests.
++        // Classic session compositor unsets WAYLAND_DISPLAY, then tty/DRM.
++        // Inherited WWN_MODEB_TTY must not steal an inner niri onto DRM.
++        let force_nested = has_display || (!modeb_tty && want_nested);
++        let force_tty = !has_display && (modeb_tty || want_tty);
  
          let mut backend = if headless {
              let headless = Headless::new();
-@@ -738,26 +766,14 @@
+@@ -738,26 +767,14 @@
              let nested = Nested::new(config.clone(), event_loop.clone())
                  .context("error initializing the nested backend")?;
              Backend::Nested(Box::new(nested))

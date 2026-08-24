@@ -1,15 +1,16 @@
 diff --git a/src/c_api.rs b/src/c_api.rs
 --- a/src/c_api.rs
 +++ b/src/c_api.rs
-@@ -17,6 +17,7 @@
+@@ -17,6 +17,8 @@
  
  use std::env;
  use std::ffi::c_int;
 +use std::panic::{catch_unwind, AssertUnwindSafe};
++use std::sync::atomic::{AtomicBool, Ordering};
  use std::path::PathBuf;
  
  use calloop::EventLoop;
-@@ -30,14 +31,27 @@
+@@ -30,14 +32,35 @@
  /// most once per process; niri's compositor state is not re-entrant.
  #[no_mangle]
  pub extern "C" fn niri_main() -> c_int {
@@ -18,8 +19,16 @@ diff --git a/src/c_api.rs b/src/c_api.rs
 -        Err(err) => {
 -            // The host app may not have a tracing subscriber; make sure the
 -            // failure reaches stderr either way.
++    static CONSUMED: AtomicBool = AtomicBool::new(false);
++    if CONSUMED.swap(true, Ordering::SeqCst) {
++        eprintln!(
++            "niri_main already ran in this process (not re-entrant). \
++             Inner niri needs a separate process, or relaunch Wawona."
++        );
++        return 1;
++    }
 +    // Wawona hosts niri in-process. An uncaught panic through this extern "C"
-+    // boundary becomes panic_cannot_unwind → abort of the whole app (iOS
++    // boundary becomes panic_cannot_unwind -> abort of the whole app (iOS
 +    // Simulator SIGABRT). Convert panics into a nonzero exit code so the host
 +    // can tear down cleanly and surface WWNNativeClientLaunchFailedNotification.
 +    match catch_unwind(AssertUnwindSafe(|| run())) {
