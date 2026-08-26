@@ -44,5 +44,7 @@ pkgs.applyPatches {
     # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
     # iland userspace KMS. iOS/Android stay nested-only. winit stays Linux-only.
     ./wawona-macos-drm-tty.patch
+    # Mode B: open DRM via libc (iland hooks) instead of rustix stat(2).
+    ./wawona-macos-drm-open.patch
   ];
 }
