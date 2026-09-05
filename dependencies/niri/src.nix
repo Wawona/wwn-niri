@@ -43,6 +43,9 @@ pkgs.applyPatches {
     # selected EGL then Nested::new died before SHM present. Use ANGLE
     # Metal with a null native display, then offscreen + wl_shm.
     ./wawona-nested-ios-angle-metal-shm.patch
+    # iOS SHM: iland does not wrap PLATFORM_ANGLE_ANGLE. Use GBM so
+    # eglInitialize hits ANGLE DEFAULT, and print the EGL error chain.
+    ./wawona-nested-ios-gbm-shm.patch
     # macOS/Android/iOS: skip xwayland-satellite (not bundled; no X11 session).
     ./wawona-xwayland-satellite-off.patch
     # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
