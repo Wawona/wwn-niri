@@ -31,7 +31,7 @@ diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
  
          // Ask the host for server-side decorations when available; Wawona
          // draws SSD frames for nested compositors.
-@@ -488,7 +506,22 @@ impl Nested {
+@@ -488,7 +506,27 @@ impl Nested {
          .map_err(|err| anyhow::anyhow!("error creating the nested EGL context: {err:?}"))?;
          info!("nested: EGL context created");
  
