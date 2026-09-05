@@ -61,12 +61,3 @@
              1
          }
          Err(payload) => {
-@@ -131,7 +134,7 @@
-         true,
-         false,
-     )
--    .map_err(|err| anyhow::anyhow!("error creating the compositor state: {err}"))?;
-+    .map_err(|err| anyhow::Error::from(err).context("error creating the compositor state"))?;
- 
-     // Export the child socket for clients (fuzzel, etc.). niri itself already
-     // holds an open connection to the host via the prior WAYLAND_DISPLAY value,
