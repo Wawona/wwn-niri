@@ -39,6 +39,10 @@ pkgs.applyPatches {
     # compositor, not for an inner weston. Also maximize so a phone-sized
     # weston is not asked for 1280x800.
     ./wawona-nested-shm-without-host-dmabuf.patch
+    # iOS / WWN_NIRI_SHM: do not pick PLATFORM_WAYLAND_KHR. That path
+    # selected EGL then Nested::new died before SHM present. Use ANGLE
+    # Metal with a null native display, then offscreen + wl_shm.
+    ./wawona-nested-ios-angle-metal-shm.patch
     # macOS/Android/iOS: skip xwayland-satellite (not bundled; no X11 session).
     ./wawona-xwayland-satellite-off.patch
     # macOS Mode B: compile the DRM/KMS tty backend (NIRI_BACKEND=tty) against
