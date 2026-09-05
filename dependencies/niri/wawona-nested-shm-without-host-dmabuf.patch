@@ -37,7 +37,12 @@ diff --git a/src/backend/nested/mod.rs b/src/backend/nested/mod.rs
  
 -        let present = if egl_has_wayland_winsys() {
 +        let host_dmabuf = host_offers_linux_dmabuf(&globals);
-+        let use_egl_present = egl_has_wayland_winsys() && host_dmabuf;
++        // iOS Wawona advertises linux-dmabuf, but nested EGL/wl_egl_window
++        // still fails (PLATFORM_WAYLAND_KHR then Nested::new error). Force
++        // wl_shm. WWN_NIRI_SHM=1 does the same on any target.
++        let force_shm = cfg!(target_os = "ios")
++            || std::env::var_os("WWN_NIRI_SHM").is_some();
++        let use_egl_present = egl_has_wayland_winsys() && host_dmabuf && !force_shm;
 +        if !use_egl_present {
 +            eprintln!(
 +                "niri: presenting via wl_shm (host linux-dmabuf={}, egl wayland winsys={})",
